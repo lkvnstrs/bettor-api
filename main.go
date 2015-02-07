@@ -6,23 +6,27 @@ import (
     "net/http"
 
     "github.com/gorilla/mux"
-    _ "github.com/lib/pq"
+    _ "github.com/go-sql-driver/mysql"
 )
 
 func main() {
-    
+
     /* db */
-    db, err := sql.Open("postgres", "postgresql://localhost/bettor")
+    db, err := sql.Open("mysql", "root@tcp(127.0.0.1:3306)/bettor")
     if err != nil {
         log.Fatal(err)
     }
     defer db.Close()
 
+    if err = db.Ping(); err != nil {
+        log.Fatal(err)
+    }
+
     /* router */
     r := mux.NewRouter()
 
     /* contacts */
-    r.HandlerFunc("/contacts")
+    r.HandlerFunc("/contacts", ContactsHandler)
 
     /* users */
     users := r.PathPrefix("/users").Subrouter()
@@ -44,4 +48,8 @@ func main() {
     bets.Methods("GET").Path("/{id}").HandlerFunc(db.BetShowHandler)
     bets.Methods("DELETE").Path("/{id}").HandlerFunc(db.BetDeleteHandler)
     bets.Methods("PUT", "POST").Path("/{id}/winner").HandlerFunc(db.BetWinnerHandler)
+
+    /* serve */
+    log.Println("Starting server on :8080")
+    http.ListenAndServe(":8080", r)
 }   
