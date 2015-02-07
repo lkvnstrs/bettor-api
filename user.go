@@ -95,7 +95,7 @@ func (db *sql.DB) UpdateUser(id int, args map[string]string) error {
 }
 
 // GetUser returns a User reflecting the current state of a given user.
-func (db *sql.DB) GetUser(id int) (User, error) {
+func (db *sql.DB) GetUser(id int) (*User, error) {
 
     var u User
     q := "select id, first_name, last_name, email, " + 
@@ -114,7 +114,7 @@ func (db *sql.DB) GetUser(id int) (User, error) {
         return nil, errors.New("Failed to get user: " + err.Error())
     }
 
-    return u, nil
+    return &u, nil
 }
 
 // GetUsers returns a slice of Users matchign the given arguments.
@@ -159,6 +159,8 @@ func (db *sql.DB) GetUsers(args map[string]string)) ([]User, error) {
     if err != nil {
         return nil, errors.New("Failed while iterating over user rows: " + err.Error())
     }
+
+    return users[0:], nil 
 }
 
 // GetUserBets gets the bets for a give user.
@@ -200,6 +202,8 @@ func (db *sql.DB) GetUserBets(id int) ([]Bet, error) {
     if err != nil {
         return nil, errors.New("Failed while iterating over user bet rows: " + err.Error())
     }
+
+    return users[0:], nil 
 }
 
 // GetUserWitnessing gets the bets for which a user is a witness.
@@ -240,6 +244,8 @@ func (db *sql.DB) GetUserWitnessing(id int) ([]Bet, error) {
     if err != nil {
         return nil, errors.New("Failed while iterating over user witness rows: " + err.Error())
     }
+
+    return bets[0:], nil 
 }
 
 // VenmoUserExists checks if a user already exists using a Venmo id.
