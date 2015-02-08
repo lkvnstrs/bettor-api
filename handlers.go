@@ -2,6 +2,7 @@ package main
 
 import (
     "encoding/json"
+    "log"
     "net/http"
     "strconv"
 
@@ -15,6 +16,7 @@ import (
 // Handles PUT and POST to /contacts.
 func (db *MyDB) ContactsHandler(rw http.ResponseWriter, r *http.Request) {
 
+    log.Println("hi")
     var contacts []Contact
     var contactpairs []ContactPair
     var err error
@@ -43,11 +45,11 @@ func (db *MyDB) ContactsHandler(rw http.ResponseWriter, r *http.Request) {
     }
 
     // form as a JSON response
-    m := Meta { Code: 200 }
-    resp := JSONResponse { meta: m, data: contactpairs }
+    m := M{ Code: 200 }
+    resp := JSONResponse { Meta: m, Data: contactpairs }
 
     // marshall and write
-    js, err := json.Marshal(&resp)
+    js, err := json.Marshal(resp)
     if err != nil {
         WriteError(rw, 500, err.Error())
         return
@@ -103,16 +105,20 @@ func (db *MyDB) UsersShowHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
+
+
     // form as a JSON response
-    m := Meta { Code: 200 }
-    resp := JSONResponse { meta: m, data: users }
+    m := M{ Code: 200 }
+    resp := JSONResponse { Meta: m, Data: users }
 
     // marshall and write
-    js, err := json.Marshal(&resp)
+    js, err := json.Marshal(resp)
     if err != nil {
         WriteError(rw, 500, err.Error())
         return
     }
+
+    
 
     rw.Write(js)
 }
@@ -182,11 +188,11 @@ func (db *MyDB) UserShowHandler(rw http.ResponseWriter, r *http.Request) {
     }
 
     // form as a JSON response
-    m := Meta { Code: 200 }
-    resp := JSONResponse { meta: m, data: *u }
+    m := M{ Code: 200 }
+    resp := JSONResponse { Meta: m, Data: *u }
 
     // marshall and write
-    js, err := json.Marshal(&resp)
+    js, err := json.Marshal(resp)
     if err != nil {
         WriteError(rw, 500, err.Error())
         return
@@ -264,11 +270,11 @@ func (db *MyDB) UserBetsHandler(rw http.ResponseWriter, r *http.Request) {
     }
 
     // form as a JSON response
-    m := Meta { Code: 200 }
-    resp := JSONResponse { meta: m, data: bets }
+    m := M{ Code: 200 }
+    resp := JSONResponse { Meta: m, Data: bets }
 
     // marshall and write
-    js, err := json.Marshal(&resp)
+    js, err := json.Marshal(resp)
     if err != nil {
         WriteError(rw, 500, err.Error())
         return
@@ -295,11 +301,11 @@ func (db *MyDB) UserWitnessingHandler(rw http.ResponseWriter, r *http.Request) {
     }
 
     // form as a JSON response
-    m := Meta { Code: 200 }
-    resp := JSONResponse { meta: m, data: bets }
+    m := M{ Code: 200 }
+    resp := JSONResponse { Meta: m, Data: bets }
 
     // marshall and write
-    js, err := json.Marshal(&resp)
+    js, err := json.Marshal(resp)
     if err != nil {
         WriteError(rw, 500, err.Error())
         return
@@ -334,11 +340,11 @@ func (db *MyDB) BetsShowHandler(rw http.ResponseWriter, r *http.Request) {
     }
 
     // form as a JSON response
-    m := Meta { Code: 200 }
-    resp := JSONResponse { meta: m, data: bets }
+    m := M{ Code: 200 }
+    resp := JSONResponse { Meta: m, Data: bets }
 
     // marshall and write
-    js, err := json.Marshal(&resp)
+    js, err := json.Marshal(resp)
     if err != nil {
         WriteError(rw, 500, err.Error())
         return
@@ -422,11 +428,11 @@ func (db *MyDB) BetShowHandler(rw http.ResponseWriter, r *http.Request) {
     }
 
     // form as a JSON response
-    m := Meta { Code: 200 }
-    resp := JSONResponse { meta: m, data: *b }
+    m := M{ Code: 200 }
+    resp := JSONResponse { Meta: m, Data: *b }
 
     // marshall and write
-    js, err := json.Marshal(&resp)
+    js, err := json.Marshal(resp)
     if err != nil {
         WriteError(rw, 500, err.Error())
         return
@@ -527,6 +533,6 @@ func WriteError(rw http.ResponseWriter, code int, errMsg string) {
 
 // WriteSuccess writes a JSON-formatted success response to a ResponseWriter.
 func WriteSuccess(rw http.ResponseWriter) {
-    js, _ := json.Marshal(JSONResponse{ meta: Meta{ Code: 200 }})
+    js, _ := json.Marshal(JSONResponse{ Meta: M{ Code: 200, ErrorMessage: "" }})
     rw.Write(js)
 }

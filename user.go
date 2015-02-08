@@ -4,6 +4,7 @@ import (
     "database/sql"
     "errors"
     "fmt"
+    // "log"
     "math/rand"
     "strconv"
     "time"
@@ -148,7 +149,7 @@ func (db *MyDB) GetUsers(args map[string]string) ([]User, error) {
 
     q := "select id, first_name, last_name, email, " +
              "access_token, profile_pic_url, created_on," +
-             " venmo_id from users where is_deleted = 0 and is_verified = 1"
+             " venmo_id from users where is_deleted = 0 and is_verified = 1 and "
 
     for k, v := range args {
         q += fmt.Sprintf("%s = %s and ", k, v)
@@ -271,18 +272,18 @@ func (db *MyDB) GetUserWitnessing(id int) ([]Bet, error) {
 
 // UserExists checks if a user with the given id exists.
 func (db *MyDB) UserExists(id int) bool {
-   var tmp int
-   err := db.QueryRow("select id from users where id = ?", id).Scan(&tmp)
-   return err == sql.ErrNoRows
+    var first_name string
+    err := db.QueryRow("select first_name from users where id=?", id).Scan(&first_name)
+    return err != sql.ErrNoRows
 }
 
 // VenmoUserExists checks if a user already exists using a Venmo id.
 func (db *MyDB) VenmoUserExists(venmoId string) bool {
 
     // there has to be a better way to get the errors from QueryRow
-    var id int
-    err := db.QueryRow("select id from users where venmo_id = ?", venmoId).Scan(&id)
-    return err == sql.ErrNoRows
+    var first_name string
+    err := db.QueryRow("select first_name from users where venmo_id = ?", venmoId).Scan(&first_name)
+    return err != sql.ErrNoRows
 }
 
 // VerifyUser sets is_verified on a given user to True when we verify their phone number.

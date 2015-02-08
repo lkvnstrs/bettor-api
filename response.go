@@ -2,30 +2,30 @@ package main
 
 // A JSONResponse represents a JSON response.
 type JSONResponse struct {
-    meta Meta               `json:"meta"`
-    data interface{}        `json:"data"`
+    Meta M                  `json:"meta"`
+    Data interface{}        `json:"data"`
 }
 
-// A Meta represents the meta field of a JSON response.
-type Meta struct {
+// A M represents the meta field of a JSON response.
+type M struct {
     Code int            `json:"code"`
     ErrorMessage string `json:"error_message"`  
 }
 
-// GenerateError creates a JSONResponse from information about a code.
+// GenerateError creates an error JSONResponse.
 func GenerateError(code int, errMsg string) (*JSONResponse) {
     return &JSONResponse{
-        meta: Meta{
+        Meta: M {
             Code: code,
             ErrorMessage: errMsg,
         },
     }
 }
 
-// GenerateError creates a JSONResponse from information about a code.
+// GenerateSuccess creates a success JSONResponse.
 func GenerateSuccess(code int, successMsg string) (*JSONResponse) {
     return &JSONResponse{
-        meta: Meta{
+        Meta: M {
             Code: code,
         },
     }
