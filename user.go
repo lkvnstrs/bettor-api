@@ -5,14 +5,13 @@ import (
     "errors"
     "fmt"
     "math/rand"
-    "net/http"
-    "net/url"
-    "os"
     "strconv"
-    "strings"
+    "time"
 
     _ "github.com/go-sql-driver/mysql"
 )
+
+const TOKEN_LENGTH = 4
 
 // A User represents basic info about a user.
 type User struct {
@@ -27,20 +26,20 @@ type User struct {
 }
 
 // CreateUser creates a new user.
-func (db *sql.DB) CreateUser(firstName string,
-                             lastName string,
-                             email string,
-                             accessToken string,
-                             profilePicUrl string,
-                             venmoId string) error {
+func (db *MyDB) CreateUser(firstName string,
+                           lastName string,
+                           email string,
+                           accessToken string,
+                           profilePicUrl string,
+                           venmoId string) error {
 
-    if VenmoUserExists(venmoId) {
+    if db.VenmoUserExists(venmoId) {
         return errors.New("A user already exists for the given Venmo id")
     }
 
     var verificationToken string
-    for i := 0; i < 4; i++ {
-        verification_token += strconv.Itoa(rand.Intn(10))
+    for i := 0; i < TOKEN_LENGTH; i++ {
+        verificationToken += strconv.Itoa(rand.Intn(10))
     }
 
     q := "insert into users (first_name, last_name, email, " +
@@ -63,14 +62,14 @@ func (db *sql.DB) CreateUser(firstName string,
 
     _, err = stmt.Exec(values)
     if err != nil {
-        return errors.new("Failed to execute user insert: " + err.Error())
+        return errors.New("Failed to execute user insert: " + err.Error())
     }
 
     return nil
 }
 
 // DeleteUser deletes a user.
-func (db *sql.DB) DeleteUser(id int) error {
+func (db *MyDB) DeleteUser(id int) error {
 
     _, err := db.Exec("update users set is_deleted = 1 where id = ?", id)
     if err != nil {
@@ -82,22 +81,22 @@ func (db *sql.DB) DeleteUser(id int) error {
 
 // UpdateUser updates information about a user.
 // If there is a phone number passed in, we also verify their phone number.
-func (db *sql.DB) UpdateUser(id int, args map[string]string) error {
+func (db *MyDB) UpdateUser(id int, args map[string]string) error {
 
-    if _, ok := args['phone_number']; ok {
+    if _, ok := args["phone_number"]; ok {
 
         // get the user's access token
-        u, err := GetUser(id)
+        u, err := db.GetUser(id)
         if err != nil {
             return errors.New("Unable to get user")
         }
 
         // send verification message
-        SendVerificationMsg(u.AccessToken, args['phone_number'])
+        db.SendVerificationMsg(u.AccessToken, args["phone_number"])
     }
 
     statement := "update users set "
-    for k, v in range args {
+    for k, v := range args {
         statement += (k + "=" + v + ",")
     }
 
@@ -110,7 +109,7 @@ func (db *sql.DB) UpdateUser(id int, args map[string]string) error {
         return errors.New("Failed to prepare user update: " + err.Error())
     }
 
-    _, err := stmt.Exec(id)
+    _, err = stmt.Exec(id)
     if err != nil {
         return errors.New("Failed to execute user update: " + err.Error())
     }
@@ -119,7 +118,7 @@ func (db *sql.DB) UpdateUser(id int, args map[string]string) error {
 }
 
 // GetUser returns a User reflecting the current state of a given user.
-func (db *sql.DB) GetUser(id int) (*User, error) {
+func (db *MyDB) GetUser(id int) (*User, error) {
 
     var u User
     q := "select id, first_name, last_name, email, " +
@@ -142,17 +141,17 @@ func (db *sql.DB) GetUser(id int) (*User, error) {
 }
 
 // GetUsers returns a slice of Users matchign the given arguments.
-func (db *sql.DB) GetUsers(args map[string]string)) ([]User, error) {
+func (db *MyDB) GetUsers(args map[string]string) ([]User, error) {
 
     var u User
-    users := make([]User)
+    users := make([]User, 0)
 
     q := "select id, first_name, last_name, email, " +
              "access_token, profile_pic_url, created_on," +
              " venmo_id from users where is_deleted = 0 and is_verified = 1"
 
     for k, v := range args {
-        q += (k + "=" v " and ")
+        q += fmt.Sprintf("%s = %s and ", k, v)
     }
 
     q = q[:len(q) - 5]
@@ -176,7 +175,7 @@ func (db *sql.DB) GetUsers(args map[string]string)) ([]User, error) {
             return nil, errors.New("Failed to scan user row: " + err.Error())
         }
 
-        users.append(u)
+        users = append(users, u)
     }
 
     err = rows.Err()
@@ -188,10 +187,10 @@ func (db *sql.DB) GetUsers(args map[string]string)) ([]User, error) {
 }
 
 // GetUserBets gets the bets for a given user.
-func (db *sql.DB) GetUserBets(id int) ([]Bet, error) {
+func (db *MyDB) GetUserBets(id int) ([]Bet, error) {
 
     var b Bet
-    bets := make([]Bet)
+    bets := make([]Bet, 0)
 
     q := "select id, bettor_id, betted_id, witness_id, " +
          "winner_id, title, desc, created_at, expire_at, " +
@@ -211,15 +210,14 @@ func (db *sql.DB) GetUserBets(id int) ([]Bet, error) {
                          &b.WinnerId,
                          &b.Title,
                          &b.Desc,
-                         &b.CreatedAt,
-                         &b.ExpireAt,
+                         &b.CreatedOn,
                          &b.Status,
                          &b.Amount)
         if err != nil {
             return nil, errors.New("Failed to scan user row: " + err.Error())
         }
 
-        bets.append(b)
+       bets = append(bets, b)
     }
 
     err = rows.Err()
@@ -227,13 +225,13 @@ func (db *sql.DB) GetUserBets(id int) ([]Bet, error) {
         return nil, errors.New("Failed while iterating over user bet rows: " + err.Error())
     }
 
-    return users[0:], nil
+    return bets[0:], nil
 }
 
 // GetUserWitnessing gets the bets for which a user is a witness.
-func (db *sql.DB) GetUserWitnessing(id int) ([]Bet, error) {
+func (db *MyDB) GetUserWitnessing(id int) ([]Bet, error) {
     var b Bet
-    bets := make([]Bet)
+    bets := make([]Bet, 0)
 
     q := "select id, bettor_id, betted_id, witness_id, " +
          "winner_id, title, desc, created_at, expire_at, " +
@@ -253,15 +251,14 @@ func (db *sql.DB) GetUserWitnessing(id int) ([]Bet, error) {
                          &b.WinnerId,
                          &b.Title,
                          &b.Desc,
-                         &b.CreatedAt,
-                         &b.ExpireAt,
+                         &b.CreatedOn,
                          &b.Status,
                          &b.Amount)
         if err != nil {
             return nil, errors.New("Failed to scan user witnesses: " + err.Error())
         }
 
-        bets.append(b)
+       bets = append(bets, b)
     }
 
     err = rows.Err()
@@ -273,14 +270,14 @@ func (db *sql.DB) GetUserWitnessing(id int) ([]Bet, error) {
 }
 
 // UserExists checks if a user with the given id exists.
-func (db *sql.DB) UserExists(id int) {
+func (db *MyDB) UserExists(id int) bool {
    var tmp int
    err := db.QueryRow("select id from users where id = ?", id).Scan(&tmp)
    return err == sql.ErrNoRows
 }
 
 // VenmoUserExists checks if a user already exists using a Venmo id.
-func (db *sql.DB) VenmoUserExists(venmoId string) bool {
+func (db *MyDB) VenmoUserExists(venmoId string) bool {
 
     // there has to be a better way to get the errors from QueryRow
     var id int
@@ -289,15 +286,15 @@ func (db *sql.DB) VenmoUserExists(venmoId string) bool {
 }
 
 // VerifyUser sets is_verified on a given user to True when we verify their phone number.
-func (db *sql.DB) VerifyUser(accessToken string, verificationToken string) error{
+func (db *MyDB) VerifyUser(accessToken string, verificationToken string) error{
 
-    dBVerificationToken, _ = GetVerificationTokenFromAccessToken(accessToken)
+    dBVerificationToken, _ := db.GetVerificationTokenFromAccessToken(accessToken)
 
     if dBVerificationToken != verificationToken {
         return errors.New("Access token does not match our records")
     }
 
-    _, err := db.Exec("update users set is_verified = 1 where access_token = ?", aceess_token)
+    _, err := db.Exec("update users set is_verified = 1 where access_token = ?", accessToken)
     if err != nil{
         return errors.New("Failed to set is_verified for the current user: " + err.Error())
     }

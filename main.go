@@ -3,35 +3,46 @@ package main
 import (
     "database/sql"
     "log"
+    "math/rand"
     "net/http"
+    "time"
 
     "github.com/gorilla/mux"
     _ "github.com/go-sql-driver/mysql"
 )
 
+// MyDB facilitates the addition of methods on top of a sql.DB.
+type MyDB struct {
+    *sql.DB
+}
+
 func main() {
+
     /* Seeding our random integer generator */
     rand.Seed( time.Now().UTC().UnixNano())
 
     /* db */
-    db, err := sql.Open("mysql", "root@tcp(127.0.0.1:3306)/bettor")
+    sqldb, err := sql.Open("mysql", "root@tcp(127.0.0.1:3306)/bettor-2-7-15")
     if err != nil {
         log.Fatal(err)
     }
-    defer db.Close()
+    defer sqldb.Close()
 
-    if err = db.Ping(); err != nil {
+    if err = sqldb.Ping(); err != nil {
         log.Fatal(err)
     }
+
+    /* context */
+    db := MyDB{ sqldb }
 
     /* router */
     r := mux.NewRouter()
 
     /* contacts */
-    r.HandlerFunc("/contacts", ContactsHandler)
+    r.HandleFunc("/contacts", db.ContactsHandler)
 
     /* verify */
-    r.HandlerFunc("/verify", VerificationHandler)
+    r.HandleFunc("/verify", db.VerificationHandler)
 
     /* users */
     users := r.PathPrefix("/users").Subrouter()

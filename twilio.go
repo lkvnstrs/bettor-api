@@ -1,25 +1,28 @@
 package main
 
 import (
-    "database/sql"
     "errors"
     "fmt"
-    "math/rand"
     "net/http"
     "net/url"
     "os"
-    "strconv"
     "strings"
 
     _ "github.com/go-sql-driver/mysql"
 )
 
 // SendVerificationMsg sends a text message with a user's verification token so they can confirm their phone number.
-func SendVerificationMsg(accessToken string, phoneNumber string) error {
+func (db *MyDB) SendVerificationMsg(accessToken string, phoneNumber string) error {
 
-    verificationToken, _ := GetVerificationTokenFromAccessToken(accessToken)
+    verificationToken, err := db.GetVerificationTokenFromAccessToken(accessToken)
+    if err != nil {
+        return err
+    }
+
+    msg := fmt.Sprintf("Your Bettor verification id is: %s", verificationToken)
     SendTwilioMsg(phoneNumber, msg)
 
+    return nil
 }
 
 // SendTwilioMsg sends a text message from the Twilio API.
@@ -44,19 +47,22 @@ func SendTwilioMsg(phoneNumber string, message string) error{
     req.Header.Add("Accept", "application/json")
     req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-    resp, err := client.Do(req)
+    _, err = client.Do(req)
     if err != nil{
         return errors.New("Verification text message failed to send: " + err.Error())
     }
+
+    return nil
 }
 
 // GetVerificationTokenFromAccessToken returns the verification token based on a 
 // given user's Venmo access token.
-func (db *sql.DB) GetVerificationTokenFromAccessToken(accessToken string) (string, error){
+func (db *MyDB) GetVerificationTokenFromAccessToken(accessToken string) (string, error){
     var verificationToken string
-    err := db.QueryRow("select verification_token from users where access_token = ?", accessToken).Scan(&verification_token)
+    err := db.QueryRow("select verification_token from users where access_token = ?", accessToken).Scan(&verificationToken)
     if err != nil{
-        return nil, errors.New("Failed while querying for the verification token: " + err.Error())
+        return "", errors.New("Failed while querying for the verification token: " + err.Error())
     }
+
     return verificationToken, nil
 }

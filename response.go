@@ -17,8 +17,8 @@ func GenerateError(code int, errMsg string) (*JSONResponse) {
     return &JSONResponse{
         meta: Meta{
             Code: code,
-            ErrorMessage: errMsg
-        }
+            ErrorMessage: errMsg,
+        },
     }
 }
 
@@ -26,7 +26,7 @@ func GenerateError(code int, errMsg string) (*JSONResponse) {
 func GenerateSuccess(code int, successMsg string) (*JSONResponse) {
     return &JSONResponse{
         meta: Meta{
-            Code: code
-        }
+            Code: code,
+        },
     }
 }
