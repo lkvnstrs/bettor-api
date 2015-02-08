@@ -1,0 +1,19 @@
+{
+	"ImportPath": "github.com/lkvnstrs/bettor-api",
+	"GoVersion": "go1.3.3",
+	"Deps": [
+		{
+			"ImportPath": "github.com/go-sql-driver/mysql",
+			"Comment": "v1.2-37-g8afc3be",
+			"Rev": "8afc3be42072f568b4868b4afe97bff228a1fb32"
+		},
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "14f550f51af52180c2eefed15e5fd18d63c0a64a"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Rev": "e444e69cbd2e2e3e0749a2f3c717cec491552bbf"
+		}
+	]
+}

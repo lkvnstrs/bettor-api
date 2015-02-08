@@ -1,11 +1,13 @@
 package main
 
 import (
-    "database/sql"
+    "encoding/json"
     "errors"
     "fmt"
+    "io/ioutil"
     // "log"
     "math/rand"
+    "net/http"
     "strconv"
     "time"
 
@@ -32,7 +34,8 @@ func (db *MyDB) CreateUser(firstName string,
                            email string,
                            accessToken string,
                            profilePicUrl string,
-                           venmoId string) error {
+                           venmoId string,
+                           phoneNumber string) error {
 
     if db.VenmoUserExists(venmoId) {
         return errors.New("A user already exists for the given Venmo id")
@@ -44,7 +47,7 @@ func (db *MyDB) CreateUser(firstName string,
     }
 
     q := "insert into users (first_name, last_name, email, " +
-             "access_token, verification_token, profile_pic_url, venmo_id) values (?)"
+             "access_token, verification_token, profile_pic_url, venmo_id, phone_number) values (?, ?, ?, ?, ?, ?, ?, ?)"
 
     stmt, err := db.Prepare(q)
     if err != nil {
@@ -52,16 +55,14 @@ func (db *MyDB) CreateUser(firstName string,
     }
     defer stmt.Close()
 
-    values := fmt.Sprintf("%s, %s, %s, %s, %s, %s, %s",
-                          firstName,
-                          lastName,
-                          email,
-                          accessToken,
-                          verificationToken,
-                          profilePicUrl,
-                          venmoId)
-
-    _, err = stmt.Exec(values)
+    _, err = stmt.Exec(firstName,
+                       lastName,
+                       email,
+                       accessToken,
+                       verificationToken,
+                       profilePicUrl,
+                       venmoId,
+                       phoneNumber)
     if err != nil {
         return errors.New("Failed to execute user insert: " + err.Error())
     }
@@ -152,7 +153,7 @@ func (db *MyDB) GetUsers(args map[string]string) ([]User, error) {
              " venmo_id from users where is_deleted = 0 and is_verified = 1 and "
 
     for k, v := range args {
-        q += fmt.Sprintf("%s = %s and ", k, v)
+        q += fmt.Sprintf("%s = '%s' and ", k, v)
     }
 
     q = q[:len(q) - 5]
@@ -176,6 +177,7 @@ func (db *MyDB) GetUsers(args map[string]string) ([]User, error) {
             return nil, errors.New("Failed to scan user row: " + err.Error())
         }
 
+        
         users = append(users, u)
     }
 
@@ -274,7 +276,7 @@ func (db *MyDB) GetUserWitnessing(id int) ([]Bet, error) {
 func (db *MyDB) UserExists(id int) bool {
     var first_name string
     err := db.QueryRow("select first_name from users where id=?", id).Scan(&first_name)
-    return err != sql.ErrNoRows
+    return err == nil
 }
 
 // VenmoUserExists checks if a user already exists using a Venmo id.
@@ -282,8 +284,8 @@ func (db *MyDB) VenmoUserExists(venmoId string) bool {
 
     // there has to be a better way to get the errors from QueryRow
     var first_name string
-    err := db.QueryRow("select first_name from users where venmo_id = ?", venmoId).Scan(&first_name)
-    return err != sql.ErrNoRows
+    err := db.QueryRow("select first_name from users where venmo_id=?", venmoId).Scan(&first_name)
+    return err == nil
 }
 
 // VerifyUser sets is_verified on a given user to True when we verify their phone number.
@@ -301,4 +303,64 @@ func (db *MyDB) VerifyUser(accessToken string, verificationToken string) error{
     }
 
     return nil
+}
+
+// GetIdByAccessToken gets a users id given their access token.
+func (db *MyDB) GetIdByAccessToken(accessToken string) (int, error) {
+    var id int
+
+    err := db.QueryRow("select id from users where access_token=?", accessToken).Scan(&id)
+    if err != nil {
+        return -1, errors.New("No user found for the given access token")
+    }
+
+    return id, nil
+}
+
+func GetVenmoInfo(accessToken string) (map[string]string, error) {
+
+    type UserBase struct {
+        FirstName string        `json:"first_name"`
+        LastName string         `json:"last_name"`
+        Email string            `json:"email"`
+        ProfilePicUrl string    `json:"profile_pic_url"`
+        Id string               `json:"id"`
+    }
+
+    type UserHolder struct {
+        User UserBase   `json:"user"`
+    }
+
+    type DataHolder struct {
+        Data UserHolder `json:"data"`
+    }
+
+    var responseHolder DataHolder
+    var err error
+
+    url := "https://api.venmo.com/v1/me?access_token=" + accessToken
+    resp, err := http.Get(url)
+    if err != nil {
+        return nil, errors.New("Request to Venmo failed")
+    }
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return nil, errors.New("Failed to parse body: " + err.Error())
+    }
+
+    err = json.Unmarshal(body, &responseHolder)
+    if err != nil {
+        return nil, err
+    }
+
+    info := make(map[string]string)
+
+    info["first_name"] = responseHolder.Data.User.FirstName
+    info["last_name"] = responseHolder.Data.User.LastName
+    info["email"] = responseHolder.Data.User.Email
+    info["profile_pic_url"] = responseHolder.Data.User.ProfilePicUrl
+    info["venmo_id"] = responseHolder.Data.User.Id
+
+    return info, nil
 }

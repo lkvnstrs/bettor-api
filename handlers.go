@@ -2,7 +2,8 @@ package main
 
 import (
     "encoding/json"
-    "log"
+    "io/ioutil"
+    // "log"
     "net/http"
     "strconv"
 
@@ -16,7 +17,6 @@ import (
 // Handles PUT and POST to /contacts.
 func (db *MyDB) ContactsHandler(rw http.ResponseWriter, r *http.Request) {
 
-    log.Println("hi")
     var contacts []Contact
     var contactpairs []ContactPair
     var err error
@@ -30,12 +30,11 @@ func (db *MyDB) ContactsHandler(rw http.ResponseWriter, r *http.Request) {
 
     phonenumbers := make([]string, len(contacts))
     i := 0
-
     for _, c := range contacts {
         for _, phone := range c.Phones {
             phonenumbers[i] = phone
             i++
-        }   
+        }
     }
 
     contactpairs, err = db.CheckPhoneNumbers(phonenumbers[0:])
@@ -55,6 +54,8 @@ func (db *MyDB) ContactsHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
+    rw.WriteHeader(200)
+    rw.Header().Set("Access-Control-Allow-Origin", "*")
     rw.Write(js)
 }
 
@@ -62,19 +63,34 @@ func (db *MyDB) ContactsHandler(rw http.ResponseWriter, r *http.Request) {
 // Handles POST to /verify.
 func (db *MyDB) VerificationHandler(rw http.ResponseWriter, r *http.Request) {
 
-    // parse the form
-    if err := r.ParseForm(); err != nil {
-        WriteError(rw, 400, err.Error())
+    // parse the data
+    defer r.Body.Close()
+    body, err := ioutil.ReadAll(r.Body)
+    if err != nil {
+        WriteError(rw, 500, "Failed to parse body: " + err.Error())
+        return 
+    }
+
+    var params map[string]string
+    err = json.Unmarshal(body, &params)
+
+    // Get access token and verification token
+    accessToken, ok := params["access_token"]
+    if !ok {
+        WriteError(rw, 400, "Parameter 'access_token' is required to verify")
         return
     }
 
-    // Get access token and verification token
-    accessToken := r.Form["access_token"][0]
-    verificationToken := r.Form["verification_token"][0]
+    verificationToken, ok := params["verification_token"]
+    if !ok {
+        WriteError(rw, 400, "Parameter 'verification_token' is required to verify")
+        return
+    }
 
     // Verify user
     if err := db.VerifyUser(accessToken, verificationToken); err != nil {
         WriteError(rw, 400, err.Error())
+        return
     }
 
     WriteSuccess(rw)
@@ -105,8 +121,6 @@ func (db *MyDB) UsersShowHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
-
-
     // form as a JSON response
     m := M{ Code: 200 }
     resp := JSONResponse { Meta: m, Data: users }
@@ -118,51 +132,63 @@ func (db *MyDB) UsersShowHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
-    
-
+    rw.WriteHeader(200)
+    rw.Header().Set("Access-Control-Allow-Origin", "*")
     rw.Write(js)
 }
 
 // UsersCreateHandler handles the creation of users.
 // Handles PUT and POST to /users.
 func (db *MyDB) UsersCreateHandler(rw http.ResponseWriter, r *http.Request) {
-    
-    requiredParams := []string{"first_name", 
-                               "last_name", 
-                               "email", 
-                               "access_token", 
-                               "verification_token", 
-                               "profile_pic_url", 
-                               "venmo_id"}
 
-    // parse the form
-    if err := r.ParseForm(); err != nil {
-        WriteError(rw, 400, err.Error())
+    // parse the data
+    defer r.Body.Close()
+    body, err := ioutil.ReadAll(r.Body)
+    if err != nil {
+        WriteError(rw, 500, "Failed to parse body: " + err.Error())
         return
     }
 
-    // verify all params are present
-    for _, p := range requiredParams {
-        if _, ok := r.Form[p]; !ok {
-            WriteError(rw, 400, "Missing parameter " + p)
-            return
-        }
+    var params map[string]string
+    err = json.Unmarshal(body, &params)
+
+    // Get access token and phone number
+    accessToken, ok := params["access_token"]
+    if !ok {
+        WriteError(rw, 400, "Required parameter 'access_token' is not present")
+        return
     }
 
-    params := make(map[string]string)
-    for k, v := range r.Form {
-        params[k] = v[0]
+    phoneNumber, ok := params["phone_number"]
+    if !ok {
+        WriteError(rw, 400, "Required parameter 'phone_number' is not present")
+        return
+    }
+
+    // // request user info from venmo
+    info, err := GetVenmoInfo(accessToken)
+    if err != nil {
+        WriteError(rw, 500, "Failed request for info from Venmo: " + err.Error())
+        return
     }
 
     // create a user
-    err := db.CreateUser(params["first_name"], 
-                         params["last_name"], 
-                         params["email"], 
-                         params["access_token"], 
-                         params["profile_pic_url"], 
-                         params["venmo_id"])
+    err = db.CreateUser(info["first_name"], 
+                        info["last_name"],
+                        info["email"], 
+                        accessToken,
+                        info["profile_pic_url"], 
+                        info["venmo_id"],
+                        phoneNumber)
     if err != nil {
         WriteError(rw, 500, "Failed to create user: " + err.Error())
+        return
+    }
+
+    // send twilio
+    err = db.SendVerificationMsg(accessToken, phoneNumber)
+    if err != nil {
+        WriteError(rw, 500, "Failed to send Twilio message: " + err.Error())
         return
     }
 
@@ -183,7 +209,7 @@ func (db *MyDB) UserShowHandler(rw http.ResponseWriter, r *http.Request) {
 
     u, err := db.GetUser(id)
     if err != nil {
-        WriteError(rw, 500, "Unable to retrieve user")
+        WriteError(rw, 500, "Unable to retrieve user: " + err.Error())
         return
     }
 
@@ -198,6 +224,8 @@ func (db *MyDB) UserShowHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
+    rw.WriteHeader(200)
+    rw.Header().Set("Access-Control-Allow-Origin", "*")
     rw.Write(js)
 
 }
@@ -213,18 +241,18 @@ func (db *MyDB) UserUpdateHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // parse the form
-    if err := r.ParseForm(); err != nil {
-        WriteError(rw, 400, err.Error())
-        return
+    // parse the data
+    defer r.Body.Close()
+    body, err := ioutil.ReadAll(r.Body)
+    if err != nil {
+        WriteError(rw, 500, "Failed to parse body: " + err.Error())
+        return 
     }
 
-    params := make(map[string]string)
-    for k, v := range r.Form {
-        params[k] = v[0]
-    }
+    var params map[string]string
+    err = json.Unmarshal(body, &params)
 
-    err := db.UpdateUser(id, params); if err != nil {
+    err = db.UpdateUser(id, params); if err != nil {
         WriteError(rw, 400, err.Error())
         return
     }
@@ -280,6 +308,8 @@ func (db *MyDB) UserBetsHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
+    rw.WriteHeader(200)
+    rw.Header().Set("Access-Control-Allow-Origin", "*")
     rw.Write(js)
 }
 
@@ -311,6 +341,8 @@ func (db *MyDB) UserWitnessingHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
+    rw.WriteHeader(200)
+    rw.Header().Set("Access-Control-Allow-Origin", "*")
     rw.Write(js)
 }
 
@@ -350,6 +382,8 @@ func (db *MyDB) BetsShowHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
+    rw.WriteHeader(200)
+    rw.Header().Set("Access-Control-Allow-Origin", "*")
     rw.Write(js)
 }
 
@@ -358,48 +392,56 @@ func (db *MyDB) BetsShowHandler(rw http.ResponseWriter, r *http.Request) {
 // Includes functionality for charging both parties over Venmo.
 func (db *MyDB) BetsCreateHandler(rw http.ResponseWriter, r *http.Request) {
 
-    requiredParams := []string{"bettor_id", 
+    requiredParams := []string{"access_token", 
                                "betted_id", 
-                               "witness_id", 
-                               "witness_id", 
-                               "title", 
-                               "desc", 
-                               "status",
+                               "witness_id",
+                               "title",
                                "amount"}
 
-    // parse the form
-    if err := r.ParseForm(); err != nil {
-        WriteError(rw, 400, err.Error())
-        return
+    // parse the data
+    defer r.Body.Close()
+    body, err := ioutil.ReadAll(r.Body)
+    if err != nil {
+        WriteError(rw, 500, "Failed to parse body: " + err.Error())
+        return 
     }
 
-    // verify all params are present
+    var params map[string]string
+    err = json.Unmarshal(body, &params)
+
+    // verify required params
     for _, p := range requiredParams {
-        if _, ok := r.Form[p]; !ok {
+        if _, ok := params[p]; !ok {
             WriteError(rw, 400, "Missing parameter " + p)
             return
         }
     }
 
-    params := make(map[string]string)
-    for k, v := range r.Form {
-        params[k] = v[0]
+    // request sets
+    bettorId, err := db.GetIdByAccessToken(params["access_token"])
+    if err != nil {
+        WriteError(rw, 400, err.Error())
+        return
     }
 
-    bettorId, err := strconv.Atoi(params["bettor_id"])
-    bettedId, err := strconv.Atoi(params["betted_id"])
-    witnessId, err := strconv.Atoi(params["witness_id"])
-    winnerId, err := strconv.Atoi(params["winner_id"])
-    amount, err := strconv.Atoi(params["amount"])
+    bettedId, _ := strconv.Atoi(params["betted_id"])
+    witnessId, _ := strconv.Atoi(params["witness_id"])
+    amount, _ := strconv.Atoi(params["amount"])
+    title := params["title"]
+   
+    // defaults to
+    winnerId := 0
+    desc := ""
+    status := "pending"
 
     // create a user
     err = db.CreateBet(bettorId, 
                        bettedId, 
                        witnessId, 
-                       winnerId, 
-                       params["title"], 
-                       params["desc"], 
-                       params["status"],
+                       winnerId,
+                       title, 
+                       desc, 
+                       status,
                        amount)
     if err != nil {
         WriteError(rw, 500, "Failed to create bet: " + err.Error())
@@ -438,6 +480,8 @@ func (db *MyDB) BetShowHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
+    rw.WriteHeader(200)
+    rw.Header().Set("Access-Control-Allow-Origin", "*")
     rw.Write(js)
 }
 
@@ -469,6 +513,7 @@ func (db *MyDB) BetDeleteHandler(rw http.ResponseWriter, r *http.Request) {
 // Includes requests to Venmo to payout on status = settled.
 func (db *MyDB) BetStatusHandler(rw http.ResponseWriter, r *http.Request) {
 
+    var settled bool
     var err error
 
     // check id
@@ -479,31 +524,36 @@ func (db *MyDB) BetStatusHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // parse the form
-    if err := r.ParseForm(); err != nil {
-        WriteError(rw, 400, err.Error())
-        return
+    // parse the data
+    defer r.Body.Close()
+    body, err := ioutil.ReadAll(r.Body)
+    if err != nil {
+        WriteError(rw, 500, "Failed to parse body: " + err.Error())
+        return 
     }
 
+    var params map[string]string
+    err = json.Unmarshal(body, &params)
+
     // update status
-    _, ok := r.Form["status"]
+    _, ok := params["status"]
     if !ok {
         WriteError(rw, 400, "Required parameter 'status' not provided")
         return
     }
 
-    status := r.Form["status"][0]
+    status := params["status"]
 
     winnerId := -1
-    settled := status == "settled"
+    settled = (status == "settled")
 
     if settled {
-        _, ok = r.Form["winner_id"]
+        _, ok = params["winner_id"]
         if !ok {
             WriteError(rw, 400, "Required parameter for status settled 'winner_id' not provided")
             return
         }
-        winnerId, err = strconv.Atoi(r.Form["winner_id"][0])
+        winnerId, err = strconv.Atoi(params["winner_id"])
         if err != nil {
             WriteError(rw, 400, "Parameter 'winner_id' must be an integer")
             return
@@ -523,16 +573,32 @@ func (db *MyDB) BetStatusHandler(rw http.ResponseWriter, r *http.Request) {
     WriteSuccess(rw)
 }
 
+
+// BetsHookHandler handles requests from the Venmo webhook.
+// Handles PUT and POST to /bets/hook.
+func (db *MyDB) BetsHookHandler(rw http.ResponseWriter, r *http.Request) {
+
+    rw.WriteHeader(200)
+    rw.Write([]byte("Not implemented yet"))
+}
+
 /* Basic Responses */
 
 // WriteError writes a JSON-formatted error response to a ResponseWriter.
 func WriteError(rw http.ResponseWriter, code int, errMsg string) {
     js, _ := json.Marshal(*GenerateError(code, errMsg))
+
+    rw.Header().Set("Access-Control-Allow-Origin", "*")
+    rw.WriteHeader(code)
     rw.Write(js)
 }
 
 // WriteSuccess writes a JSON-formatted success response to a ResponseWriter.
 func WriteSuccess(rw http.ResponseWriter) {
-    js, _ := json.Marshal(JSONResponse{ Meta: M{ Code: 200, ErrorMessage: "" }})
+    code := 200
+    js, _ := json.Marshal(JSONResponse{ Meta: M{ Code: code, ErrorMessage: "" }})
+
+    rw.Header().Set("Access-Control-Allow-Origin", "*")
+    rw.WriteHeader(code)
     rw.Write(js)
 }

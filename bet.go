@@ -66,20 +66,20 @@ func (db *MyDB) GetBets(params map[string] string) ([]Bet, error){
 
     query := "select * from bets where is_deleted = 0 and "
     for k, v := range params {
-        query += fmt.Sprintf("%s = %s and ", k, v)
+        query += fmt.Sprintf("%s = '%s' and ", k, v)
     }
 
     query = query[:len(query) - 5]
 
     stmt, err := db.Prepare(query)
     if err != nil{
-        return nil, errors.New("Error when preparing the RetrieveBets query")
+        return nil, errors.New("Error when preparing the bet query")
     }
     defer stmt.Close()
 
     rows, err := stmt.Query()
     if err != nil{
-        return nil, errors.New("Error when executing the RetrieveBets query")
+        return nil, errors.New("Error when executing the bet query")
     }
     defer rows.Close()
 
@@ -175,6 +175,10 @@ func (db *MyDB) UpdateBetStatus(id int, status string, winnerId int) error {
     if err != nil{
         return errors.New("Failed to update bet status")
     }
+
+    // if settled {
+    //     // 
+    // }
 
     return nil
 

@@ -3,13 +3,13 @@ package main
 // A JSONResponse represents a JSON response.
 type JSONResponse struct {
     Meta M                  `json:"meta"`
-    Data interface{}        `json:"data"`
+    Data interface{}        `json:"data,omitempty"`
 }
 
 // A M represents the meta field of a JSON response.
 type M struct {
     Code int            `json:"code"`
-    ErrorMessage string `json:"error_message"`  
+    ErrorMessage string `json:"error_message,omitempty"`  
 }
 
 // GenerateError creates an error JSONResponse.
