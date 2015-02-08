@@ -40,6 +40,7 @@ func main() {
     users.Methods("PUT", "POST").HandlerFunc(db.UsersCreateHandler)
 
     users.Methods("GET").Path("/{id}").HandlerFunc(db.UserShowHandler)
+    users.Methods("PUT", "POST").Path("/{id}").HandlerFunc(db.UserUpdateHandler)
     users.Methods("DELETE").Path("/{id}").HandlerFunc(db.UserDeleteHandler)
     users.Methods("GET").Path("/{id}/bets").HandlerFunc(db.UserBetsHandler)
     users.Methods("GET").Path("/{id}/witnessing").HandlerFunc(db.UserWitnessingHandler)

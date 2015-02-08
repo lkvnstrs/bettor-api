@@ -45,6 +45,23 @@ func (db *sql.DB) ContactsHandler(rw http.ResponseWriter, r *http.Request) {
 // Handles POST to /verify.
 func (db *sql.DB) VerificationHandler(rw http.ResponseWriter, r *http.Request) {
 
+    // parse the form
+    if err := r.ParseForm(); err != nil {
+        rw.WriteError(400, err.Error())
+        return
+    }
+
+    // Get access token and verification token
+    accessToken := r.Form["access_token"]
+    verificationToken := r.Form["verification_token"]
+
+    // Verify user
+    if err := VerifyUser(accessToken, verificationToken); err != nil {
+        rw.WriteError(400, err.Error())
+    }
+
+    rw.WriteSuccess()
+
 }
 
 // UsersShowHandler handles display of users.
@@ -52,18 +69,15 @@ func (db *sql.DB) VerificationHandler(rw http.ResponseWriter, r *http.Request) {
 func (db *sql.DB) UsersShowHandler(rw http.ResponseWriter, r *http.Request) {
 
     var users []User 
-    var err error
 
     // parse the form
-    if err = r.ParseForm(); err != nil {
+    if err := r.ParseForm(); err != nil {
         rw.WriteError(400, err.Error())
         return
     }
 
-    params := r.Form
-
     // get user info
-    users, err = db.GetUsers(params)
+    users, err := db.GetUsers(r.Form)
     if err != nil {
         rw.WriteError(500, err.Error())
         return
@@ -97,15 +111,13 @@ func (db *sql.DB) UsersCreateHandler(rw http.ResponseWriter, r *http.Request) {
 
     // parse the form
     if err = r.ParseForm(); err != nil {
-        WriteError(400, err.Error())
+        rw.WriteError(400, err.Error())
         return
     }
 
-    params := r.Form
-
     // verify all params are present
     for _, p := range requiredParams {
-        if _, ok := params[p]; !ok {
+        if _, ok := r.Form[p]; !ok {
             rw.WriteError(400, "Missing parameter " + p)
             return
         }
@@ -158,6 +170,31 @@ func (db *sql.DB) UserShowHandler(rw http.ResponseWriter, r *http.Request) {
 
     rw.Write(js)
 
+}
+
+// UserUpdateHandler handles updating a user.
+// Handles POST at /users/{id}.
+func (db *sql.DB) UserUpdateHandler(rw http.ResponseWriter, r *http.Request) {
+
+    id := mux.Vars(r)["id"]
+
+    if !db.UserExists(id) {
+        rw.WriteError(400, "No user found with id " + strconv.Itoa(id))
+        return
+    }
+
+    // parse the form
+    if err = r.ParseForm(); err != nil {
+        rw.WriteError(400, err.Error())
+        return
+    }
+
+    err := db.UpdateUser(id, r.Form) {
+        rw.WriteError(400, err.Error())
+        return
+    }
+
+    rw.WriteSuccess()
 }
 
 // UserDeleteHandler handles the deletion of users.
@@ -255,10 +292,8 @@ func (db *sql.DB) BetsShowHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
-    params := r.Form
-
     // get user info
-    bets, err = db.GetBets(params)
+    bets, err = db.GetBets(r.Form)
     if err != nil {
         rw.WriteError(500, err.Error())
         return
@@ -295,15 +330,13 @@ func (db *sql.DB) BetsCreateHandler(rw http.ResponseWriter, r *http.Request) {
 
     // parse the form
     if err = r.ParseForm(); err != nil {
-        WriteError(400, err.Error())
+        rw.WriteError(400, err.Error())
         return
     }
 
-    params := r.Form
-
     // verify all params are present
     for _, p := range requiredParams {
-        if _, ok := params[p]; !ok {
+        if _, ok := r.Form[p]; !ok {
             rw.WriteError(400, "Missing parameter " + p)
             return
         }
@@ -401,10 +434,8 @@ func (db *sql.DB) BetStatusHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
-    params := r.Form
-
     // update status
-    status, ok := params["status"]
+    status, ok := r.Form["status"]
     if !ok {
         rw.WriteError(400, "Required parameter 'status' not provided")
         return
@@ -414,7 +445,7 @@ func (db *sql.DB) BetStatusHandler(rw http.ResponseWriter, r *http.Request) {
     settled = staus == "settled"
 
     if settled {
-        winnerId, ok = params["winner_id"]
+        winnerId, ok = r.Form["winner_id"]
         if !ok {
             rw.WriteError(400, "Required parameter for status settled 'winner_id' not provided")
             return
@@ -427,9 +458,11 @@ func (db *sql.DB) BetStatusHandler(rw http.ResponseWriter, r *http.Request) {
         return
     }
 
-    if settled {
-        // Call function to charge bettor_id and betted_id
-    }
+    // if settled {
+    //     // Call function to charge bettor_id and betted_id
+    // }
+
+    rw.WriteSuccess()
 }
 
 /* Basic Responses */

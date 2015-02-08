@@ -26,40 +26,6 @@ type User struct {
     VenmoId string          `json:"venmo_id"`
 }
 
-// Sends a text message with a user's verification token so they can confirm their phone number.
-func SendVerificationMsg(accessToken string, phoneNumber string) error{
-    verificationToken, _ := GetVerificationTokenFromAccessToken(accessToken)
-    msg := fmt.Sprintf("Your Bettor verification id is: %s", verificationToken)
-    SendTwilioMsg(phoneNumber, msg)
-}
-
-// Sends a text message from the Twilio API.
-func SendTwilioMsg(phoneNumber string, message string) error{
-    accountSid := "AC4b7b097d333a0d6490fff5d1098db453"
-    authToken := os.Getenv("TWILIO_SECRET_KEY")
-    urlString := fmt.Sprintf("https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json", accountSid)
-
-    url_params := url.Values{}
-    url_params.Set("From", "+19782212680")
-    url_params.Set("To", fmt.Sprintf("+1%s", phoneNumber))
-    url_params.Set("Body", message)
-    req_body := *strings.NewReader(url_params.Encode())
-
-    client := &http.Client{}
-    req, err := http.NewRequest("POST", urlString, &req_body)
-    if err != nil{
-        return errors.New("There was an error creating your NewRequest: " + err.Error())
-    }
-    req.SetBasicAuth(accountSid, authToken)
-    req.Header.Add("Accept", "application/json")
-    req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-    resp, err := client.Do(req)
-    if err != nil{
-        return errors.New("The verification text message has failed to send: " + err.Error())
-    }
-}
-
 // CreateUser creates a new user.
 func (db *sql.DB) CreateUser(firstName string,
                              lastName string,
@@ -117,8 +83,17 @@ func (db *sql.DB) DeleteUser(id int) error {
 // UpdateUser updates information about a user.
 // If there is a phone number passed in, we also verify their phone number.
 func (db *sql.DB) UpdateUser(id int, args map[string]string) error {
+
     if _, ok := args['phone_number']; ok {
-        SendVerificationMsg(args['phone_number'])
+
+        // get the user's access token
+        u, err := GetUser(id)
+        if err != nil {
+            return errors.New("Unable to get user")
+        }
+
+        // send verification message
+        SendVerificationMsg(u.AccessToken, args['phone_number'])
     }
 
     statement := "update users set "
@@ -313,27 +288,18 @@ func (db *sql.DB) VenmoUserExists(venmoId string) bool {
     return err == sql.ErrNoRows
 }
 
-// Returns the verification token based on a given user's Venmo access token.
-func (db *sql.DB) GetVerificationTokenFromAccessToken(accessToken string) (string, error){
-    var verificationToken string
-    err := db.QueryRow("select verification_token from users where access_token = ?", accessToken).Scan(&verification_token)
-    if err != nil{
-        return nil, errors.New("Failed while querying for the verification token: " + err.Error())
-    }
-    return verificationToken, nil
-}
-
-// Sets is_verified on a given user to True when we verify their phone number.
+// VerifyUser sets is_verified on a given user to True when we verify their phone number.
 func (db *sql.DB) VerifyUser(accessToken string, verificationToken string) error{
+
     dBVerificationToken, _ = GetVerificationTokenFromAccessToken(accessToken)
 
     if dBVerificationToken != verificationToken {
-        return errors.New("Your access token does not match our records. Try again?")
+        return errors.New("Access token does not match our records")
     }
 
     _, err := db.Exec("update users set is_verified = 1 where access_token = ?", aceess_token)
     if err != nil{
-        return errors.New("Error when setting is_verified for the current user: " + err.Error())
+        return errors.New("Failed to set is_verified for the current user: " + err.Error())
     }
 
     return nil
