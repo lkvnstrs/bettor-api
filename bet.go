@@ -24,7 +24,7 @@ type Bet struct {
     Amount int            `json:"amount"` // in cents
 }
 
-// Creates a bet.
+// CreateBet creates a bet.
 func (db *sql.DB) CreateBet(bettorId int,
                             bettedId int,
                             witnessId int,
@@ -62,8 +62,8 @@ func (db *sql.DB) CreateBet(bettorId int,
     return nil
 }
 
-//Retrieves a list of bets by specific query parameters
-func (db *sql.DB) RetrieveBets(params map[string] string) ([]Bet, error){
+// GetBets retrieves a list of bets by specific query parameters.
+func (db *sql.DB) GetBets(params map[string] string) ([]Bet, error){
     bets := make([]Bet)
     var b Bet
 
@@ -104,11 +104,11 @@ func (db *sql.DB) RetrieveBets(params map[string] string) ([]Bet, error){
         return errors.New("Error when scanning the RetrieveBets query")
     }
 
-    return bets, nil
+    return bets[0:], nil
 }
 
-// Retrieves a specific bet by it's id in the database.
-func (db *sql.DB) RetrieveBet(id int) (*Bet, error){
+// GetBet retrieves a specific bet by it's id in the database.
+func (db *sql.DB) GetBet(id int) (*Bet, error){
     var b Bet
     err := db.QueryRow("select * from bet where id = ?", id).Scan(&b.Id,
                                                                   &b.BettorId,
@@ -128,9 +128,9 @@ func (db *sql.DB) RetrieveBet(id int) (*Bet, error){
     return &b, nil
 }
 
-// Deletes a bet.
-// We don't delete the row from the actual table. Instead we toggle the
-// is_deleted attribute in the database.
+// DeleteBet deletes a bet.
+// Doesn't delete the row from the actual table. 
+// Toggles the is_deleted attribute in the database.
 func (db *sql.DB) DeleteBet(id int) error{
 
     query, err := db.Prepare("update bets set is_deleted = 1 where id = ?")
@@ -146,18 +146,41 @@ func (db *sql.DB) DeleteBet(id int) error{
     return nil
 }
 
-// Updates a specific bet with it's winner.
-func (db *sql.DB) UpdateBetWinner(id int, winnerId int) error {
+// UpdateBetStatus updates the status of a bet.
+// Status can only set to "declined", "pending", "active", and "settled".
+// Status "settled" charges
+func (db *sql.DB) UpdateBetStatus(id int, status string, winnerId int) error {
 
-    query, err := db.Prepare("update bets set winner_id = ? where id = ? and is_deleted = 0")
-    if err != nil {
-        return errors.New("Error when preparing the UpdateBetWinner query")
+    settled := status == "settled"
+    q := "update bets set status=?"
+
+    if settled {
+        q += ", winner_id=?"
     }
 
-    _, err := query.Exec(winnerId, id)
+    q += " where id = ? and is_deleted = 0"
+
+    query, err := db.Prepare(q)
+    if err != nil {
+        return errors.New("Failed to update bet status")
+    }
+
+    if settled {
+        _, err := query.Exec(status, winnerId, id)
+    } else {
+        _, err := query.Exec(status, id)
+    }
     if err != nil{
-        return errors.New("Error when executing the UpdateBetWinner query")
+        return errors.New("Failed to update bet status")
     }
 
     return nil
+
+}
+
+// BetExists checks if a bet with the given id exists.
+func (db *sql.DB) BetExists(id int) {
+    var tmp int
+    err := db.QueryRow("select id from bets where id = ?", id).Scan(&tmp)
+    return err == sql.ErrNoRows
 }

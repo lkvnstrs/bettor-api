@@ -2,15 +2,8 @@ package main
 
 // A JSONResponse represents a JSON response.
 type JSONResponse struct {
-    pagination Pagination   `json:"pagination"`
     meta Meta               `json:"meta"`
     data interface{}        `json:"data"`
-}
-
-// A Pagination represents the pagination field of a JSON response.
-type Pagination struct {
-    NextURL string      `json:"next_url"`
-    NextMaxId string    `json:"next_max_id"`
 }
 
 // A Meta represents the meta field of a JSON response.
