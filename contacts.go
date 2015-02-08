@@ -4,7 +4,7 @@ import (
     "database/sql"
     "errors"
     "fmt"
-    "strings"
+    "strconv"
     "time"
 
     _ "github.com/go-sql-driver/mysql"
@@ -24,7 +24,7 @@ func (db *sql.DB) CheckPhoneNumbers(phoneNumbers []string) ([]ContactPair, error
     query := "select id, phone_number from users where phone_number in ?"
 
     for phone_number := range phoneNumbers{
-        query += strings.Itoa(phone_number)
+        query += strconv.Itoa(phone_number)
     }
     query := query[:len(query) - 2]
 
@@ -35,7 +35,7 @@ func (db *sql.DB) CheckPhoneNumbers(phoneNumbers []string) ([]ContactPair, error
     defer rows.Close()
 
     for rows.Next(){
-        
+
         err = rows.Scan(&cp.PhoneNumber, &cp.UserId)
         contactpairs.append(cp)
     }

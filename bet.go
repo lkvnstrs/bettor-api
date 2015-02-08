@@ -25,17 +25,17 @@ type Bet struct {
 }
 
 // Creates a bet.
-func (db *sql.DB) CreateBet(bettorId int, 
-                            bettedId int, 
-                            witnessId int, 
-                            winnerId int, 
-                            title string, 
-                            description string, 
-                            expireOn time.Duration, 
-                            status string, 
+func (db *sql.DB) CreateBet(bettorId int,
+                            bettedId int,
+                            witnessId int,
+                            winnerId int,
+                            title string,
+                            description string,
+                            expireOn time.Duration,
+                            status string,
                             amount int) error {
 
-    q := "insert into bet (id, bettor_id, betted_id, witness_id, " + 
+    q := "insert into bet (id, bettor_id, betted_id, witness_id, " +
          "winner_id, title, description, created,_on, expire_on, " +
          "status, amount values (?)"
 
@@ -44,16 +44,16 @@ func (db *sql.DB) CreateBet(bettorId int,
         return errors.New("Error when preparing the CreateBet query")
     }
 
-    q := fmt.Sprintf("%s, %s, %s, %s, %s, %s, %s, %s, %s", bettorId, 
-                                                           bettedId, 
-                                                           witnessId, 
-                                                           winnerId, 
-                                                           title, 
-                                                           description, 
-                                                           expireOn, 
-                                                           status, 
+    q := fmt.Sprintf("%s, %s, %s, %s, %s, %s, %s, %s, %s", bettorId,
+                                                           bettedId,
+                                                           witnessId,
+                                                           winnerId,
+                                                           title,
+                                                           description,
+                                                           expireOn,
+                                                           status,
                                                            amount)
-    
+
     _, err := query.Exec(q)
     if err != nil{
         return errors.New("Error when executing the CreateBet query")
@@ -87,16 +87,16 @@ func (db *sql.DB) RetrieveBets(params map[string] string) ([]Bet, error){
     defer rows.Close()
 
     for rows.Next() {
-        err = rows.Scan(&b.Id, 
-                        &b.BettorId, 
-                        &b.BettedID, 
-                        &b.WitnessID, 
-                        &b.WinnerID, 
-                        &b.Title, 
-                        &b.Desc, 
-                        &b.CreatedOn, 
-                        &b.ExpireOn, 
-                        &b.Status, 
+        err = rows.Scan(&b.Id,
+                        &b.BettorId,
+                        &b.BettedID,
+                        &b.WitnessID,
+                        &b.WinnerID,
+                        &b.Title,
+                        &b.Desc,
+                        &b.CreatedOn,
+                        &b.ExpireOn,
+                        &b.Status,
                         &b.Amount)
         bets.append(b)
     }
@@ -110,16 +110,16 @@ func (db *sql.DB) RetrieveBets(params map[string] string) ([]Bet, error){
 // Retrieves a specific bet by it's id in the database.
 func (db *sql.DB) RetrieveBet(id int) (*Bet, error){
     var b Bet
-    err := db.QueryRow("select * from bet where id = ?", id).Scan(&b.Id, 
-                                                                  &b.BettorId, 
-                                                                  &b.BettedID, 
-                                                                  &b.WitnessID, 
-                                                                  &b.WinnerID, 
-                                                                  &b.Title, 
-                                                                  &b.Desc, 
-                                                                  &b.CreatedOn, 
-                                                                  &b.ExpireOn, 
-                                                                  &b.Status, 
+    err := db.QueryRow("select * from bet where id = ?", id).Scan(&b.Id,
+                                                                  &b.BettorId,
+                                                                  &b.BettedID,
+                                                                  &b.WitnessID,
+                                                                  &b.WinnerID,
+                                                                  &b.Title,
+                                                                  &b.Desc,
+                                                                  &b.CreatedOn,
+                                                                  &b.ExpireOn,
+                                                                  &b.Status,
                                                                   &b.Amount)
     if err != nil{
         return errors.New("Error when executing the RetrieveBet query")

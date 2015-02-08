@@ -10,6 +10,8 @@ import (
 )
 
 func main() {
+    /* Seeding our random integer generator */
+    rand.Seed( time.Now().UTC().UnixNano())
 
     /* db */
     db, err := sql.Open("mysql", "root@tcp(127.0.0.1:3306)/bettor")
@@ -52,4 +54,4 @@ func main() {
     /* serve */
     log.Println("Starting server on :8080")
     http.ListenAndServe(":8080", r)
-}   
+}
